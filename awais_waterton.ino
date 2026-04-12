@@ -1,26 +1,48 @@
 #include <SPI.h>
 #include <WiFiNINA.h>
 #include <ArduinoMDNS.h>
+#include <vector>
 
 #define ACCESS_POINT_SSID "awais-connect"
 #define MDNS_HOSTNAME "awais"
 WiFiServer server(80);
 WiFiUDP udp;
 MDNS mdns(udp);
-int numSsid;
 
+
+
+typedef struct SsidEntry{
+  String ssid;
+  long rssi;
+};
 
 typedef struct HttpRequest{
   String headerCommand;
   String body;
 };
+std::vector<SsidEntry> ssids;
+#include "captive_portal_html.h"
+
+
+std::vector<SsidEntry> getSsids(int numSsid){
+  std::vector<SsidEntry> output;
+  output.reserve(numSsid);
+  for (int i = 0; i < numSsid; i++) {
+    SsidEntry entry;
+    entry.ssid = WiFi.SSID(i);
+    entry.rssi = WiFi.RSSI(i);
+    output.push_back(entry);
+  }
+  return output;
+}
 
 void setup() {
   Serial.begin(9600);
   delay(2000);
   Serial.println("Awais starting setup...");
 
-  numSsid = WiFi.scanNetworks();
+  int numSsid = WiFi.scanNetworks();
+  ssids = getSsids(numSsid);
   // Start Access Point
   Serial.print("Access Point: ");
   Serial.println(ACCESS_POINT_SSID);
@@ -53,22 +75,13 @@ void loop() {
     client.println("HTTP/1.1 200 OK");
     client.println("Content-type:text/html");
     client.println();
-    String ssidsJson = "";
-    for (int i = 0; i < numSsid; i++) {
-      ssidsJson += "\"";
-      ssidsJson += WiFi.SSID(i);
-      ssidsJson += "\"";
-      if (i < numSsid - 1) {
-        ssidsJson += ",";
-      }
-    }
-    client.print("ssids:[");
-    client.print(ssidsJson);
-    client.println("]}");
+    client.print(getFullHtmlString(ssids));
   }
   delay(10);
   client.stop();
 }
+
+
 
 
 HttpRequest parseRequest(String request){
