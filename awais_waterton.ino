@@ -1,14 +1,30 @@
 #include <SPI.h>
 #include <WiFiNINA.h>
+#include <ArduinoMDNS.h>
 
 #define ACCESS_POINT_SSID "awais-connect"
+#define MDNS_HOSTNAME "awais"
 WiFiServer server(80);
+WiFiUDP udp;
+MDNS mdns(udp);
 
 typedef struct HttpRequest{
   String headerCommand;
   String body;
 };
-
+void nameFound(const char* name, IPAddress ip)
+{
+  if (ip != INADDR_NONE) {
+    Serial.print("The IP address for '");
+    Serial.print(name);
+    Serial.print("' is ");
+    Serial.println(ip);
+  } else {
+    Serial.print("Resolving '");
+    Serial.print(name);
+    Serial.println("' timed out.");
+  }
+}
 void setup() {
   Serial.begin(9600);
   delay(2000);
@@ -21,11 +37,15 @@ void setup() {
     Serial.println("AP Setup Failed");
     while (true);
   }
+  Serial.print("local ip: ");
+  mdns.begin(WiFi.localIP(), MDNS_HOSTNAME);
+  mdns.setNameResolvedCallback(nameFound);
 
   server.begin();
 }
 
 void loop() {
+  mdns.run();
   WiFiClient client = server.available();
   if (!client) return;
 
