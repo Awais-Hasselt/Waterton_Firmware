@@ -1,6 +1,8 @@
 #ifndef BATTERY_SENSOR_H
 #define BATTERY_SENSOR_H
 
+#include <Arduino.h>
+
 #define V_REF 3.3
 #define V_FULL_BATTERY 12.7
 #define V_LOW_BATTER 11.5

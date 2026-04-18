@@ -37,7 +37,8 @@ const String portalhtmlEnd = R"portalhtmlEnd(
         <input type="text" id="s" name="ssid" placeholder="Netwerknaam (SSID)" required>
         <div class="d"><b>Tip:</b> Gebruik je een hotspot die net pas aan staat? Als deze niet in de lijst staat, kun je de naam handmatig typen.</div>
         <input type="password" id="p" name="password" placeholder="Wachtwoord" required>
-        <button type="submit">Verbinden</button>
+        <input type="text" id="n" name="name" placeholder="Geef je ton een naam (e.g. Awais ton)" required>
+        <button type="submit">Opslaan en Verbinden</button>
     </form>
     <div class="d">De regenton onthoudt deze gegevens en verbindt de volgende keer automatisch.</div>
 </div>
