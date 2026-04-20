@@ -4,8 +4,8 @@
 #include <Arduino.h>
 
 #define V_REF 3.3
-#define V_FULL_BATTERY 12.7
-#define V_LOW_BATTER 11.5
+#define V_FULL_BATTERY 12.6
+#define V_LOW_BATTER 12.0
 #define ADC_MAX 4095 // 2^12
 #define VOLTAGE_DIVIDER_RATIO ((27000.0 + 6800.0) / 6800.0)
 

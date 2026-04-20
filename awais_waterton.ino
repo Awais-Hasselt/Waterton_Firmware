@@ -16,6 +16,7 @@
 #define POMP_PIN 21
 #define CAPTIVE_PORTAL_HOSTNAME "awais"
 #define CAPTIVE_PORTAL_SSID "awais-connect"
+#define SERVER_URL "awais-hasselt.vercel.app"
 
 const float BARREL_RADIUS = 25.0;
 const float BARREL_HEIGHT = 90.0;
@@ -47,6 +48,8 @@ void setup() {
   storage.begin();
   hw.togglePump(false);
   
+  Serial.print("batery level: ");
+  Serial.println(hw.getBatteryLevel());
   hw.beep(1); 
 
   if(storage.isEmpty() || hw.buttonPressed()) {
@@ -57,7 +60,7 @@ void setup() {
   Serial.println("Connecting to Network...");
   connectToWiFi();
   rtc.begin();
-  server.begin(storage.getData().name);
+  server.begin(storage.getData().name, SERVER_URL);
   
   Serial.print("Getting public unix timestamp... ");
   uint32_t timestamp_ref = server.getPublicEpoch();
@@ -156,7 +159,7 @@ void pollServer(uint32_t currentEpoch) {
   int distance = hw.getWaterDistance();
   float waterHeight = BARREL_HEIGHT - distance;
   if (waterHeight < 0) waterHeight = 0; 
-  float volumeLiters = (3.14159 * pow(BARREL_RADIUS, 2) * waterHeight) / 1000.0;
+  float volumeLiters = (3.14159 * BARREL_RADIUS * BARREL_RADIUS * waterHeight) / 1000.0;
 
   Serial.print("Data: Bat="); Serial.print(batLevel);
   Serial.print(", Dist="); Serial.print(distance);
