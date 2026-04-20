@@ -2,6 +2,7 @@
 #define HARDWARE_H
 
 #include <Arduino.h>
+#include "BatterySensor.h"
 
 class Hardware {
 private:
