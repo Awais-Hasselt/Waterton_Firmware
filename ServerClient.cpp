@@ -7,42 +7,60 @@ void ServerClient::begin(String name, String host) {
     _host = host;
 }
 
+uint32_t ServerClient::getPublicEpoch() {
+    WiFiSSLClient timeClient; 
+    const char* timeHost = "aisenseapi.com";
+    
+    if (!timeClient.connect(timeHost, 443)) return 0;
+
+    timeClient.println("GET /services/v1/timestamp HTTP/1.1");
+    timeClient.println("Host: aisenseapi.com");
+    timeClient.println("Connection: close");
+    timeClient.println();
+
+    while (timeClient.connected()) {
+        String line = timeClient.readStringUntil('\n');
+        if (line == "\r") break;
+    }
+
+    uint32_t foundTime = 0;
+    if (timeClient.find("\"timestamp\":")) {
+        foundTime = timeClient.parseInt();
+    }
+    timeClient.stop();
+    return foundTime;
+}
+
 ScheduleResponse ServerClient::ContactServer(uint32_t timestamp, int v_today, int v_tomorrow, int battery, float water) {
     ScheduleResponse res = {false, false, {0}, {0}};
 
-    // Check if we are actually connected to a network first
-    if (WiFi.status() != WL_CONNECTED) {
-        return res; 
-    }
+    if (WiFi.status() != WL_CONNECTED) return res; 
 
-    if (_client.connect(_host.c_str(), 80)) {
-        // 1. Format the Request Body
+    // Connect via HTTPS (Port 443)
+    if (_sslClient.connect(_host.c_str(), 443)) {
         String body = _name + "\n";
         body += "t" + String(timestamp) + ", v" + String(v_today) + "|" + String(v_tomorrow);
         body += ", b" + String(battery) + ", w" + String(water);
 
-        // 2. Send POST Headers
-        _client.println("POST /api/status HTTP/1.1");
-        _client.println("Host: " + _host);
-        _client.println("Content-Type: text/plain");
-        _client.print("Content-Length: ");
-        _client.println(body.length());
-        _client.println("Connection: close");
-        _client.println();
-        
-        // 3. Send Body
-        _client.print(body);
+        _sslClient.println("POST /api/status HTTP/1.1");
+        _sslClient.println("Host: " + _host);
+        _sslClient.println("Content-Type: text/plain");
+        _sslClient.print("Content-Length: ");
+        _sslClient.println(body.length());
+        _sslClient.println("Connection: close");
+        _sslClient.println();
+        _sslClient.print(body);
 
-        // 4. Skip HTTP Response Headers
-        while (_client.connected()) {
-            String line = _client.readStringUntil('\n');
+        // Skip Headers
+        while (_sslClient.connected()) {
+            String line = _sslClient.readStringUntil('\n');
             if (line == "\r") break; 
         }
 
-        // 5. Parse the Protocol Body (yy, yn, ny, nn)
-        if (_client.available() >= 2) {
-            char todayFlag = _client.read();
-            char tomorrowFlag = _client.read();
+        // Parse protocol body
+        if (_sslClient.available() >= 2) {
+            char todayFlag = _sslClient.read();
+            char tomorrowFlag = _sslClient.read();
 
             res.today_updated = (todayFlag == 'y');
             res.tomorrow_updated = (tomorrowFlag == 'y');
@@ -50,23 +68,23 @@ ScheduleResponse ServerClient::ContactServer(uint32_t timestamp, int v_today, in
             if (res.today_updated) parseSchedule(res.schedule_today);
             if (res.tomorrow_updated) parseSchedule(res.schedule_tomorrow);
         }
-        _client.stop();
+        _sslClient.stop();
     }
     return res;
 }
 
 void ServerClient::parseSchedule(Schedule &dest) {
-    // Wait briefly for data to arrive if the connection is slow
     unsigned long timeout = millis();
-    while(_client.available() < 51 && millis() - timeout < 2000) { delay(10); }
+    // SSL can be slower, so we wait up to 3 seconds for the data packet
+    while(_sslClient.available() < 51 && millis() - timeout < 3000) { delay(10); }
 
     char verBuf[4] = {0};
-    for(int i=0; i<3; i++) verBuf[i] = _client.read();
+    for(int i=0; i<3; i++) verBuf[i] = _sslClient.read();
     dest.version = atoi(verBuf);
 
     for(int i=0; i<48; i++) {
-        if(_client.available()) {
-            dest.slots[i] = _client.read();
+        if(_sslClient.available()) {
+            dest.slots[i] = _sslClient.read();
         }
     }
 }

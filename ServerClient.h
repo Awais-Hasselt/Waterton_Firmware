@@ -2,11 +2,10 @@
 #define SERVER_CLIENT_H
 
 #include <WiFiNINA.h>
-#include "CredentialStorage.h"
 
 struct Schedule {
     int version;
-    char slots[48]; // '-', '1', '2', '3', 'f'
+    char slots[48]; 
 };
 
 struct ScheduleResponse {
@@ -18,20 +17,16 @@ struct ScheduleResponse {
 
 class ServerClient {
 private:
-    WiFiClient _client;
+    WiFiSSLClient _sslClient; // Changed to SSL
     String _name;
     String _host;
 
     void parseSchedule(Schedule &dest);
 
 public:
-    // Simple constructor
     ServerClient();
-    
-    // Setup server details without touching WiFi hardware
     void begin(String name, String host);
-    
-    // Assumes WiFi is already connected before calling
+    uint32_t getPublicEpoch();
     ScheduleResponse ContactServer(uint32_t timestamp, int v_today, int v_tomorrow, int battery, float water);
 };
 

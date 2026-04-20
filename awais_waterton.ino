@@ -3,6 +3,7 @@
 #include "Hardware.h"
 #include "ServerClient.h"
 #include "PumpController.h"
+#include <SPI.h>
 #include <WiFiNINA.h>
 #include <RTCZero.h>
 
@@ -16,9 +17,9 @@
 #define CAPTIVE_PORTAL_HOSTNAME "awais"
 #define CAPTIVE_PORTAL_SSID "awais-connect"
 
-const float BARREL_RADIUS = 30.0;
-const float BARREL_HEIGHT = 100.0;
-const uint32_t POLL_INTERVAL = 300; // 5 minutes
+const float BARREL_RADIUS = 25.0;
+const float BARREL_HEIGHT = 90.0;
+const uint32_t POLL_INTERVAL = 5; // 5 minutes
 
 // System Objects
 Hardware hw(BUTTON_PIN, BUZZER_PIN, BATTERY_PIN, POMP_PIN, ULTRASONE_ECHO_PIN, ULTRASONE_TRIG_PIN);
@@ -31,6 +32,8 @@ PumpController pumpCtrl;
 // State Tracking
 bool isManualOverride = false;
 uint32_t nextPollTime = 0;
+
+String name;
 
 void setup() {
   Serial.begin(115200);
@@ -54,19 +57,15 @@ void setup() {
   Serial.println("Connecting to Network...");
   connectToWiFi();
   rtc.begin();
-  server.begin(storage.getData().name, "awais-hasselt.vercel.app");
+  server.begin(storage.getData().name);
   
-  Serial.print("Syncing RTC with WiFi time... ");
-  uint32_t wifiTime = WiFi.getTime();
-  if (wifiTime > 0) {
-    rtc.setEpoch(wifiTime);
-    Serial.println("SUCCESS. Current Epoch: " + String(wifiTime));
-    hw.beep(3); 
-  } else {
-    rtc.setEpoch(1715673600); 
-    Serial.println("FAILED. Using default epoch.");
-    hw.beep(5); 
-  }
+  Serial.print("Getting public unix timestamp... ");
+  uint32_t timestamp_ref = server.getPublicEpoch();
+  Serial.print(" --> ");
+  Serial.println(timestamp_ref);
+  Serial.println("Syncing RTC with timestamp");
+  rtc.setEpoch(timestamp_ref);
+  hw.beep(3); 
   
   nextPollTime = rtc.getEpoch() + 5; 
   Serial.println("Setup Complete. Entering Loop.\n");
@@ -120,6 +119,7 @@ void loop() {
   // ==========================================
   if (now >= nextPollTime) {
     Serial.println("\n--- POLLING SERVER ---");
+    Serial.print("name:"); Serial.println(name);
     pollServer(now);
     nextPollTime = now + POLL_INTERVAL;
     Serial.println("Next poll at epoch: " + String(nextPollTime));
@@ -181,21 +181,46 @@ void pollServer(uint32_t currentEpoch) {
 
 void connectToWiFi() {
   DeviceConfig conf = storage.getData();
+  name = conf.name;
   if (WiFi.status() == WL_CONNECTED) return;
 
-  Serial.print("Connecting to: "); Serial.println(conf.ssid);
-  WiFi.begin(conf.ssid, conf.password);
-  
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
-    delay(500);
-    Serial.print(".");
+  Serial.println("\n--- Initializing WiFi ---");
+
+  // 1. FORCED RESET: If the module is confused, we shut it down first
+  WiFi.end(); 
+  delay(500); 
+
+  // 2. TIMEOUT LOOP: We try to connect multiple times
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 3) {
+    attempts++;
+    Serial.print("Attempt "); Serial.print(attempts);
+    Serial.print(" to connect to: "); Serial.println(conf.ssid);
+
+    // Some routers need a "firm" begin. 
+    // Passing SSID/Pass explicitly even if stored helps.
+    WiFi.begin(conf.ssid, conf.password);
+
+    // 3. PATIENCE: Wait up to 10 seconds per attempt
+    unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+      delay(500);
+      Serial.print(".");
+    }
+    
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("\nFailed attempt. Retrying...");
+      WiFi.end(); // Clean the slate again
+      delay(1000);
+    }
   }
-  
+
   if(WiFi.status() == WL_CONNECTED) {
     Serial.println("\nWiFi Connected! IP: " + WiFi.localIP().toString());
+    hw.beep(2);
   } else {
-    Serial.println("\nWiFi Connection Failed.");
+    Serial.println("\nCRITICAL: WiFi failed after 3 attempts.");
+    hw.beep(10); // Long series of beeps for error
   }
 }
 
